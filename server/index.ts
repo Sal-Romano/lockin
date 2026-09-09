@@ -15,7 +15,7 @@ import * as rooms from './rooms'
 import { renderOgCached } from './og'
 
 const PORT = Number(process.env.PORT || 9834)
-const ORIGIN = process.env.PUBLIC_ORIGIN || 'https://meetup.sals.site'
+const ORIGIN = process.env.PUBLIC_ORIGIN || 'https://lockin.sals.site'
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 
 // creator-attached event photos live on disk next to the db (data/ is gitignored)
@@ -430,9 +430,9 @@ app.get('/e/:id/ics', (c) => {
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//meetup.sals.site//EN',
+    'PRODID:-//lockin.sals.site//EN',
     'BEGIN:VEVENT',
-    `UID:${ev.id}@meetup.sals.site`,
+    `UID:${ev.id}@lockin.sals.site`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+Z/, 'Z')}`,
     ...dt,
     `SUMMARY:${(ev.emoji ? ev.emoji + ' ' : '') + ev.title.replace(/[,;\\\r\n]+/g, ' ')}`,
