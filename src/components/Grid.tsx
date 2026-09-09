@@ -7,6 +7,7 @@ import {
   fmtMin,
   fmtRange,
   heatColor,
+  nameColor,
   optionKey,
   optionLabel,
   parseDate,
@@ -33,6 +34,8 @@ export interface GridProps {
   onStroke: (next: Set<string>, summary?: string) => void
   /** heat denominator: people who have responded */
   denom: number
+  /** my display name, for the "you" bubble piped into options i picked */
+  meName?: string | null
   locked?: LockedWindow | null
   /** slotKey -> painter color, for remote-stroke glints */
   glints?: Map<string, string>
@@ -764,7 +767,7 @@ function DateTiles({ event, others, mySlots, onStroke, denom, locked, glints, re
  * with a cool ring + check, others-only is warm, and an untaken offer is a
  * clearly tappable neutral.
  */
-function OptionGrid({ event, others, mySlots, onStroke, denom, locked, glints, animateIn, readOnly }: GridProps) {
+function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, glints, animateIn, readOnly }: GridProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [colW, setColW] = useState(MIN_COL)
   const [rowH, setRowH] = useState(MAX_ROW)
@@ -772,6 +775,13 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, locked, glints, a
   const [showHint, setShowHint] = useState(
     () => !readOnly && mySlots.size === 0 && !localStorage.getItem(SLOT_HINT_KEY),
   )
+  // liquid rises from empty on first paint, then eases as votes change
+  const [risen, setRisen] = useState(!animateIn)
+  useEffect(() => {
+    if (risen) return
+    const t = window.setTimeout(() => setRisen(true), 30)
+    return () => window.clearTimeout(t)
+  }, [risen])
 
   const stroke = useRef<{ mode: 'add' | 'erase'; touched: Set<string>; pointerId: number } | null>(null)
   const pointers = useRef<Map<number, { x: number; y: number }>>(new Map())
@@ -1037,25 +1047,29 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, locked, glints, a
             const total = otherCount + (mine ? 1 : 0)
             const isLocked =
               locked?.date === o.date && locked?.startMin === o.startMin && locked?.endMin === o.endMin
-            const warm = otherCount > 0
-            // warm heat by total when others share it; solid cool when it's your
-            // solo pick; a tappable neutral when nobody has taken the offer yet
-            const bg = warm
-              ? (heatColor(total, denom) ?? 'var(--bg-sunken)')
-              : mine
-                ? 'var(--you)'
-                : 'var(--bg-sunken)'
-            const solo = mine && !warm
+            const everyone = total > 0 && total >= denom && denom >= 2
+            // the glass fills to the share of responders who are in; a lone vote
+            // still shows a visible sliver, and everyone tops it off completely
+            const frac = denom > 0 ? Math.min(1, total / denom) : 0
+            const fillPct = total === 0 ? 0 : everyone ? 100 : Math.max(12, Math.round(frac * 100))
             const spanH = (siEnd - siStart + 1) * rowH
             const justPainted = mine && !mySlots.has(k)
             const r = compact ? 8 : 10
+            // who is in, piped in as bubbles: you first (accent), then others
+            const voters = others.filter((p) => p.slots.includes(k))
+            const bubbles = [
+              ...(mine ? [{ label: (meName || 'you').slice(0, 1).toUpperCase(), me: true, color: 'var(--accent)' }] : []),
+              ...voters.map((p) => ({ label: p.name.slice(0, 1).toUpperCase(), me: false, color: nameColor(p.name) })),
+            ]
+            const shown = bubbles.slice(0, 3)
+            const extra = bubbles.length - shown.length
             return (
               <div
                 key={k}
                 role="gridcell"
                 aria-selected={mine}
-                aria-label={`${optionLabel(o)}, ${total} in${mine ? ', including you' : ''}`}
-                className={`relative flex flex-col items-center justify-center overflow-hidden text-center transition-colors ${
+                aria-label={`${optionLabel(o)}, ${total} in${mine ? ', including you' : ''}${everyone ? ', everyone' : ''}`}
+                className={`relative flex flex-col items-center overflow-hidden text-center ${
                   glints?.has(k) ? 'cell-glint' : ''
                 } ${justPainted ? 'cell-stamp' : ''}`}
                 style={{
@@ -1063,51 +1077,80 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, locked, glints, a
                   gridRow: `${2 + siStart} / ${3 + siEnd}`,
                   margin: 2,
                   borderRadius: r,
-                  background: bg,
-                  color: solo ? '#fff' : 'var(--ink)',
+                  background: 'var(--bg-sunken)',
+                  color: 'var(--ink)',
                   boxSizing: 'border-box',
-                  borderStyle: 'solid',
-                  borderWidth: mine ? 3 : 1,
-                  borderColor: isLocked ? 'var(--gold)' : mine ? 'var(--you)' : 'var(--line)',
+                  boxShadow: isLocked
+                    ? 'inset 0 0 0 2px var(--gold)'
+                    : mine
+                      ? 'inset 0 0 0 2px var(--accent)'
+                      : 'inset 0 0 0 1px var(--line)',
                   ...(glints?.has(k) ? { ['--glint-color' as string]: glints.get(k) } : {}),
                 }}
               >
-                {mine && (
-                  <span
-                    className="pointer-events-none absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full text-[10px] font-bold"
-                    style={{ background: 'var(--you)', color: '#fff' }}
-                    aria-hidden
-                  >
-                    ✓
-                  </span>
-                )}
-                <span className="pointer-events-none px-1 text-xs font-bold leading-tight">
-                  {fmtRange(o.startMin, o.endMin)}
-                </span>
-                {spanH >= 40 && (
-                  <span
-                    className="pointer-events-none mt-0.5 text-[11px] leading-tight"
-                    style={{ color: solo ? 'rgba(255,255,255,0.85)' : 'var(--ink-soft)' }}
-                  >
-                    {total > 0 ? `${total} in` : 'open'}
-                  </span>
-                )}
+                {/* the liquid: height = share of the group who are in */}
+                <div
+                  className={`lockin-fill ${everyone ? 'lockin-fill-full' : ''}`}
+                  style={{ height: risen ? `${fillPct}%` : '0%' }}
+                  aria-hidden
+                />
+                {/* content sits above the liquid */}
+                <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-between p-1.5">
+                  <div className="flex flex-col items-center gap-0.5">
+                    <span
+                      className="text-xs font-bold leading-tight"
+                      style={{ color: 'var(--ink)', textShadow: '0 1px 2px rgba(0,0,0,0.28)' }}
+                    >
+                      {fmtRange(o.startMin, o.endMin)}
+                    </span>
+                    {everyone ? (
+                      <span
+                        className="rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+                        style={{ background: 'var(--gold)', color: '#3a2a05' }}
+                      >
+                        everyone
+                      </span>
+                    ) : (
+                      total > 0 && (
+                        <span className="text-[10px] font-semibold" style={{ color: 'var(--ink-soft)', textShadow: '0 1px 2px rgba(0,0,0,0.25)' }}>
+                          {total}
+                          {denom >= 2 ? ` of ${denom}` : ''} in
+                        </span>
+                      )
+                    )}
+                  </div>
+                  {spanH >= 52 && bubbles.length > 0 && (
+                    <div className="flex items-center pl-1">
+                      {shown.map((bub, i) => (
+                        <span
+                          key={i}
+                          className="-ml-1 flex h-5 w-5 items-center justify-center rounded-full text-[9px] font-bold first:ml-0"
+                          style={{
+                            background: bub.color,
+                            color: bub.me ? 'var(--on-accent)' : '#fff',
+                            boxShadow: bub.me
+                              ? '0 0 0 1.5px var(--bg-sunken), 0 0 0 3px var(--accent)'
+                              : '0 0 0 1.5px var(--bg-sunken)',
+                          }}
+                        >
+                          {bub.label}
+                        </span>
+                      ))}
+                      {extra > 0 && (
+                        <span
+                          className="-ml-1 flex h-5 items-center justify-center rounded-full px-1 text-[9px] font-bold"
+                          style={{ background: 'var(--bg-raised)', color: 'var(--ink-soft)', boxShadow: '0 0 0 1.5px var(--bg-sunken)' }}
+                        >
+                          +{extra}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )
           })}
         </div>
-      </div>
-
-      {/* legend: same two colors, two meanings as every other grid */}
-      <div className="mt-1.5 flex flex-none items-center justify-center gap-4 text-[11px] font-medium" style={{ color: 'var(--ink-soft)' }}>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded" style={{ background: 'var(--you)' }} />
-          you
-        </span>
-        <span className="flex items-center gap-1.5">
-          <span className="inline-block h-3 w-3 rounded" style={{ background: heatColor(denom, denom) === 'var(--gold)' ? 'var(--gold)' : 'rgba(234, 88, 12, 0.7)' }} />
-          the group
-        </span>
       </div>
 
       {/* once-per-device ghost hint: here you SELECT offered blocks, not paint */}

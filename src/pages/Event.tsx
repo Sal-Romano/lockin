@@ -348,6 +348,10 @@ export default function EventPage({ refId }: { refId: string }) {
   const now = new Date()
   const todayKey = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
   const isPast = ev.dates.every((d) => d < todayKey)
+  // a whole-group winning time exists: the creator gets the loud lock CTA, and
+  // the quieter "best so far" hero steps aside so the date is not stated 3 times
+  const consensus = spots[0] != null && denom >= 2 && spots[0].count >= denom
+  const bigLock = payload.isCreator && !ev.locked && !isPast && consensus
   // stage emphasis: until you have painted, the grid is the hero and the
   // hotspots stay out of the way; once you are in, the answer takes the stage
   const hasPainted = mySlots.size > 0 || payload.me != null
@@ -510,8 +514,10 @@ export default function EventPage({ refId }: { refId: string }) {
         />
       ) : (
         /* one stable, compact best-so-far line: it never grows or squishes the
-           grid as people pick. the full ranked list + lock lives in the lock sheet */
-        spots.length > 0 && (
+           grid as people pick. hidden when the loud lock CTA already states the
+           winning date. the full ranked list + lock lives in the lock sheet */
+        spots.length > 0 &&
+        !bigLock && (
           <div className="flex flex-none items-center gap-2 text-sm">
             <span className="shrink-0">🔥</span>
             <span className="min-w-0 truncate font-semibold" style={{ color: 'var(--ink)' }}>
@@ -536,16 +542,28 @@ export default function EventPage({ refId }: { refId: string }) {
         </p>
       )}
 
-      {/* creator can lock any time, anytime, even before it is a clear winner */}
-      {payload.isCreator && !ev.locked && !isPast && (
-        <button
-          onClick={() => setLockSheet(true)}
-          className="flex flex-none items-center justify-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-semibold active:scale-95"
-          style={{ borderColor: 'var(--line)', background: 'var(--bg-raised)', color: 'var(--ink-soft)' }}
-        >
-          🔒 lock the plan
-        </button>
-      )}
+      {/* creator can lock any time, anytime. once a whole-group time exists the
+          button graduates from a quiet pill to the loud, pulsing primary CTA. */}
+      {payload.isCreator &&
+        !ev.locked &&
+        !isPast &&
+        (bigLock ? (
+          <button
+            onClick={() => setLockSheet(true)}
+            className="lockin-ready flex flex-none items-center justify-center gap-2 self-stretch rounded-2xl py-3.5 text-base font-bold active:scale-[0.99]"
+            style={{ background: 'var(--accent)', color: 'var(--on-accent)', boxShadow: 'var(--shadow-card)' }}
+          >
+            🔒 lock in {fmtDate(spots[0].date)}
+          </button>
+        ) : (
+          <button
+            onClick={() => setLockSheet(true)}
+            className="flex flex-none items-center justify-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-semibold active:scale-95"
+            style={{ borderColor: 'var(--line)', background: 'var(--bg-raised)', color: 'var(--ink-soft)' }}
+          >
+            🔒 lock the plan
+          </button>
+        ))}
 
       {/* shown only when there is no best-so-far line, so exactly one status
           line is ever present and the grid never shifts */}
@@ -568,6 +586,7 @@ export default function EventPage({ refId }: { refId: string }) {
               mySlots={mySlots}
               onStroke={onStroke}
               denom={denom}
+              meName={name}
               locked={ev.locked}
               glints={glints}
               animateIn
