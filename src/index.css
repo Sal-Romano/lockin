@@ -1,0 +1,233 @@
+@import "tailwindcss";
+
+/*
+  Paper-lantern light is the default; dark follows the system automatically.
+  Warm colors (ember ramp, gold) belong to HEAT. Cool colors (you-ink, name
+  palette) belong to PEOPLE. The two never compete.
+*/
+:root {
+  color-scheme: light dark;
+
+  --bg: #faf6f0;
+  --bg-raised: #ffffff;
+  --bg-sunken: #f1ebe2;
+  --ink: #221d18;
+  --ink-soft: #6f665c;
+  --ink-faint: #776e63;
+  --line: #e8e0d3;
+
+  --accent: #ea580c;
+  --accent-soft: #fff0e5;
+  --on-accent: #ffffff;
+  --you: #0e7490;
+  --gold: #f5b021;
+  --live: #16a34a;
+
+  --cell-empty: rgba(34, 29, 24, 0.05);
+  --shadow-card: 0 1px 2px rgba(34, 29, 24, 0.05), 0 4px 16px rgba(34, 29, 24, 0.06);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #12100e;
+    --bg-raised: #1c1916;
+    --bg-sunken: #0c0b09;
+    --ink: #f3efe9;
+    --ink-soft: #a89e92;
+    --ink-faint: #8d8478;
+    --line: #2c2823;
+
+    --accent: #f97316;
+    --accent-soft: #2c1c10;
+    --on-accent: #12100e;
+    --you: #22d3ee;
+    --gold: #fbbf24;
+    --live: #4ade80;
+
+    --cell-empty: rgba(243, 239, 233, 0.06);
+    --shadow-card: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 16px rgba(0, 0, 0, 0.35);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: ui-rounded, -apple-system, "SF Pro Rounded", system-ui, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* paint cells own their touches; gutters, headers, and margins stay scroll rails */
+.paint-surface {
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+
+/*
+  The one selectable-option recipe, used everywhere a choice is made (mode
+  cards, when-ish presets, group-size, day cells). State is an inset ring, not a
+  border, so selected and unselected are the exact same box size. Solid --accent
+  is reserved for the single primary action, so selections never compete with it.
+*/
+.opt {
+  background: var(--bg-raised);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--ink);
+  transition:
+    box-shadow 140ms ease,
+    background 140ms ease,
+    transform 120ms ease;
+}
+.opt:active {
+  transform: scale(0.98);
+}
+.opt[aria-pressed='true'] {
+  background: var(--accent-soft);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* my availability: ink ring with a 1px separation so it reads over any heat */
+.mine-ring {
+  box-shadow:
+    inset 0 0 0 1.5px var(--bg-raised),
+    inset 0 0 0 3.5px var(--you);
+}
+
+/* remote stroke glint: a painter-colored glow that fades */
+@keyframes glint {
+  0% {
+    box-shadow: inset 0 0 0 2px var(--glint-color, var(--accent));
+    filter: brightness(1.25);
+  }
+  100% {
+    box-shadow: inset 0 0 0 0 transparent;
+    filter: brightness(1);
+  }
+}
+.cell-glint {
+  animation: glint 700ms ease-out;
+}
+
+/* entrance: columns ignite left to right */
+@keyframes ignite {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.ignite {
+  animation: ignite 360ms ease-out both;
+  animation-delay: calc(var(--col, 0) * 55ms);
+}
+
+/* the crown on the #1 hotspot */
+@keyframes shimmer {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.12);
+  }
+}
+.crown-shimmer {
+  animation: shimmer 2.4s ease-in-out infinite;
+}
+
+/* ember sparks for celebration moments (max-count increase only) */
+@keyframes ember {
+  0% {
+    opacity: 1;
+    transform: translate(0, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(var(--dx, 6px), -18px) scale(0.4);
+  }
+}
+.ember {
+  /* invisible unless the animation runs, so reduced-motion never strands dots */
+  opacity: 0;
+  animation: ember 900ms ease-out both;
+}
+
+/* paint stamp: the visual haptic for a cell landing */
+@keyframes stamp {
+  0% {
+    transform: scale(0.85);
+  }
+  60% {
+    transform: scale(1.04);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.cell-stamp {
+  animation: stamp 140ms ease-out;
+}
+
+/* the ghost dot in the first-visit paint hint: a finger tracing downward */
+@keyframes ghost-drag {
+  0%,
+  15% {
+    transform: translateY(-14px);
+    opacity: 0;
+  }
+  30% {
+    opacity: 1;
+  }
+  70% {
+    transform: translateY(14px);
+    opacity: 1;
+  }
+  85%,
+  100% {
+    transform: translateY(14px);
+    opacity: 0;
+  }
+}
+.ghost-dot {
+  animation: ghost-drag 1.8s ease-in-out infinite;
+}
+
+@keyframes pulse-soft {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
+}
+.pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ignite,
+  .cell-glint,
+  .crown-shimmer,
+  .ember,
+  .cell-stamp,
+  .pulse-soft {
+    animation: none;
+  }
+  .opt {
+    transition: none;
+  }
+  .opt:active {
+    transform: none;
+  }
+}
