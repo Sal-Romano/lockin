@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CreateEventInput, EventMode, TimeOption } from '../../shared/types'
-import { fmtRange, MAX_END_MIN, monthOf, optionKey, parseDate } from '../../shared/slots'
+import { fmtRange, hourAfter, hourBefore, MAX_END_MIN, monthOf, optionKey, parseDate } from '../../shared/slots'
 import { api } from '../lib/api'
 import { savedName } from '../lib/device'
 import { suggestEmojis } from '../lib/emojiSuggest'
@@ -281,8 +281,8 @@ export default function Create() {
   // window stops matching a preset and reads as a custom range from then on), and
   // the end may run past midnight into the small hours of the next morning.
   const extendWindow = (edge: 'start' | 'end') => {
-    if (edge === 'start') setStartMin((m) => Math.max(0, m - 60))
-    else setEndMin((m) => Math.min(MAX_END_MIN, m + 60))
+    if (edge === 'start') setStartMin(hourBefore)
+    else setEndMin((m) => Math.min(MAX_END_MIN, hourAfter(m)))
   }
 
   // the calendar stays open until you tap "these days ✓": pick as many as you

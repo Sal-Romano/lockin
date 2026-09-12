@@ -12,6 +12,11 @@ export const DAY_MIN = 1440
  */
 export const MAX_END_MIN = DAY_MIN + 360
 
+/** the whole hour just before a window's start, for the axis "+" control */
+export const hourBefore = (min: number): number => Math.max(0, (Math.ceil(min / 60) - 1) * 60)
+/** the whole hour just after a window's end. Snapping keeps the label short ("2am", not "2:30am") */
+export const hourAfter = (min: number): number => (Math.floor(min / 60) + 1) * 60
+
 /** slot key for datetime mode: '2026-09-12T1140' where 1140 = minutes from midnight */
 export const slotKey = (date: string, min: number) => `${date}T${pad(min, 4)}`
 

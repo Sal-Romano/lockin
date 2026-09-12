@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import type { LockedWindow, MeetEvent, Participant, TimeOption } from '../../shared/types'
 import {
@@ -7,6 +8,8 @@ import {
   fmtMin,
   fmtRange,
   heatColor,
+  hourAfter,
+  hourBefore,
   MAX_END_MIN,
   monthChangeTags,
   monthOf,
@@ -24,24 +27,22 @@ const HEADER_H = 44
 const MIN_ROW = 24
 const MAX_ROW = 60
 const MIN_COL = 72
-/** how much one tap on an axis "+" adds */
-const EXTEND_STEP = 60
-
 /**
- * A "+" that widens the offered window, parked in the time axis so it costs a
- * row of height and no horizontal room. Its label is the time it would ADD, so
- * you know what you are getting before you tap.
+ * A "+" that widens the offered window. It lives INSIDE the time axis, so it
+ * costs no height: one rides in the sticky corner beneath the month, the other
+ * pins to the bottom-left of the card. Sized to the gutter, and labelled with
+ * the hour it would add (always a whole hour, so the text stays short).
  */
 function AxisAdd({
   label,
   disabled,
   onClick,
-  className = '',
+  style,
 }: {
   label: string
   disabled: boolean
   onClick: () => void
-  className?: string
+  style?: CSSProperties
 }) {
   return (
     <button
@@ -49,18 +50,19 @@ function AxisAdd({
       onClick={onClick}
       disabled={disabled}
       aria-label={disabled ? `cannot extend past ${label}` : `add ${label}`}
-      className={`flex h-6 flex-none items-center justify-center gap-0.5 self-start rounded-md text-[10px] font-bold active:scale-95 ${className}`}
+      className="flex items-center justify-center rounded text-[9px] font-bold leading-none active:scale-90"
       style={{
-        width: GUTTER + 26,
+        width: GUTTER - 8,
+        height: 16,
         background: 'var(--bg-sunken)',
         boxShadow: 'inset 0 0 0 1px var(--line)',
         color: 'var(--ink-soft)',
-        opacity: disabled ? 0.35 : 1,
+        opacity: disabled ? 0.3 : 1,
         transition: 'transform 120ms ease',
+        ...style,
       }}
     >
-      <span className="text-[12px] leading-none">+</span>
-      {label}
+      +{label}
     </button>
   )
 }
@@ -413,14 +415,6 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
-      {onExtend && (
-        <AxisAdd
-          label={fmtMin(Math.max(0, event.startMin - EXTEND_STEP))}
-          disabled={event.startMin <= 0}
-          onClick={() => onExtend('start')}
-          className="mb-1"
-        />
-      )}
       <div
         ref={scrollerRef}
         role="grid"
@@ -453,12 +447,19 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
           {/* establishing month: the corner is otherwise dead space, and it means
               the columns never have to repeat a month that has not changed */}
           <div
-            className="sticky left-0 top-0 z-30 flex items-center justify-center"
+            className="sticky left-0 top-0 z-30 flex flex-col items-center justify-center gap-1"
             style={{ background: 'var(--bg-raised)' }}
           >
             <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
               {dates.length > 0 ? monthOf(dates[leftCol] ?? dates[0]) : ''}
             </span>
+            {onExtend && (
+              <AxisAdd
+                label={fmtMin(hourBefore(event.startMin))}
+                disabled={event.startMin <= 0}
+                onClick={() => onExtend('start')}
+              />
+            )}
           </div>
 
           {dates.map((d, di) => {
@@ -525,10 +526,10 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
 
       {onExtend && (
         <AxisAdd
-          label={fmtMin(Math.min(MAX_END_MIN, event.endMin + EXTEND_STEP))}
+          label={fmtMin(Math.min(MAX_END_MIN, hourAfter(event.endMin)))}
           disabled={event.endMin >= MAX_END_MIN}
           onClick={() => onExtend('end')}
-          className="mt-1"
+          style={{ position: 'absolute', left: 4, bottom: 5, zIndex: 25 }}
         />
       )}
 
@@ -624,7 +625,10 @@ function RowCells({
           background: 'var(--bg-raised)',
           color: 'var(--ink-faint)',
           fontSize: compact ? 9 : 10,
-          transform: 'translateY(-0.4em)',
+          // labels straddle the line at the TOP of their row, except the first:
+          // shifting that one up slid it under the opaque sticky corner (z-30),
+          // which clipped it
+          transform: si === 0 ? 'none' : 'translateY(-0.4em)',
         }}
         aria-hidden
       >
@@ -1167,7 +1171,10 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
                 background: 'var(--bg-raised)',
                 color: 'var(--ink-faint)',
                 fontSize: compact ? 9 : 10,
-                transform: 'translateY(-0.4em)',
+                // labels straddle the line at the TOP of their row, except the first:
+                // shifting that one up slid it under the opaque sticky corner (z-30),
+                // which clipped it
+                transform: si === 0 ? 'none' : 'translateY(-0.4em)',
               }}
               aria-hidden
             >
