@@ -77,11 +77,11 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
     for (let w = 0; w < WEEKS; w++) {
       let label: string | null = null
       const days: DayCell[] = []
-      let mid = today
+      let weekEnd = today
       for (let i = 0; i < 7; i++) {
         const d = new Date(start)
         d.setDate(start.getDate() + w * 7 + i)
-        if (i === 3) mid = d // midweek decides the month the header shows
+        if (i === 6) weekEnd = d // the month a week ENDS in is the one it announces
         if (d.getDate() === 1) {
           label = d.getFullYear() === today.getFullYear() ? MON_FULL[d.getMonth()] : `${MON_FULL[d.getMonth()]} ${d.getFullYear()}`
         }
@@ -96,11 +96,15 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
       }
       // the top of the scroller always announces the month you are looking at;
       // if a new month sneaks into week 0, its day-1 cell still wears the tiny name
-      if (w === 0) label = MON_FULL[today.getMonth()]
+      // week 0 announces the month you are actually in; every later week is named
+      // for the month it ends in, so the pinned header always agrees with the
+      // day-1 divider rendered above that week. (No forced week-0 label anymore:
+      // the pinned header owns that job and the two could disagree.)
+      const named = w === 0 ? today : weekEnd
       const month =
-        mid.getFullYear() === today.getFullYear()
-          ? MON_FULL[mid.getMonth()]
-          : `${MON_FULL[mid.getMonth()]} ${mid.getFullYear()}`
+        named.getFullYear() === today.getFullYear()
+          ? MON_FULL[named.getMonth()]
+          : `${MON_FULL[named.getMonth()]} ${named.getFullYear()}`
       out.push({ label, month, days })
     }
     return out

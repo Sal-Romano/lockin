@@ -36,11 +36,11 @@ interface InfoTipProps {
  * narrator pill portals for the same reason.) That trap vanishes under Reduce
  * Motion, which removes the transform, so it would only break for other people.
  *
- * Dismissal is a capture-phase document pointerdown that bails when the tap
- * landed inside anything marked [data-pop] (the card or ANY trigger). No scrim:
+ * Dismissal is a capture-phase document pointerdown that bails only when the tap
+ * landed inside THIS instance (its card or its own trigger). No scrim:
  * a tap elsewhere should dismiss this AND still hit the control you aimed at,
- * because this explains something, it does not block anything. Exempting the
- * triggers is also what keeps a second tap on "?" from closing and instantly
+ * because this explains something, it does not block anything. Exempting our own
+ * trigger is also what keeps a second tap on "?" from closing and instantly
  * reopening. pointerdown (not click) because iOS does not reliably fire click
  * on non-interactive elements and drops it entirely when the tap becomes a
  * scroll. A fixed card cannot track a scrolling anchor, so scrolling closes it.
@@ -75,27 +75,33 @@ export default function InfoTip({ label, children }: InfoTipProps) {
     const vTop = vv?.offsetTop ?? 0
     const vW = vv?.width ?? window.innerWidth
     const vH = vv?.height ?? window.innerHeight
-    const box = boxRef.current.getBoundingClientRect()
+    // offsetWidth/Height, NOT getBoundingClientRect: the entry animation is
+    // play-pending at this point and its 0% keyframe holds transform: scale(0.96),
+    // so a rect read here is the scaled box and every clamp below inherits the error
+    const bw = boxRef.current.offsetWidth
+    const bh = boxRef.current.offsetHeight
 
     const minL = vLeft + GUTTER
-    const maxL = Math.max(minL, vLeft + vW - GUTTER - box.width)
-    const left = Math.min(Math.max(anchor.left + anchor.width / 2 - box.width / 2, minL), maxL)
+    const maxL = Math.max(minL, vLeft + vW - GUTTER - bw)
+    const left = Math.min(Math.max(anchor.left + anchor.width / 2 - bw / 2, minL), maxL)
 
     const belowTop = anchor.bottom + GAP
-    const fitsBelow = belowTop + box.height <= vTop + vH - GUTTER
-    const top = fitsBelow ? belowTop : Math.max(vTop + GUTTER, anchor.top - GAP - box.height)
+    const fitsBelow = belowTop + bh <= vTop + vH - GUTTER
+    const top = fitsBelow ? belowTop : Math.max(vTop + GUTTER, anchor.top - GAP - bh)
 
     // keep the caret nailed to the trigger even after the card was clamped
-    const caret = Math.min(Math.max(anchor.left + anchor.width / 2 - left, CARET + 3), box.width - CARET - 3)
+    const caret = Math.min(Math.max(anchor.left + anchor.width / 2 - left, CARET + 3), bw - CARET - 3)
     setPos({ left, top, caret, flipped: !fitsBelow })
   }, [anchor])
 
   useEffect(() => {
     if (!open) return
     const onDown = (e: PointerEvent) => {
-      const t = e.target as Element | null
-      // taps on the card or on any "?" trigger are handled by those elements
-      if (t?.closest?.('[data-pop]')) return
+      const n = e.target as Node | null
+      // only THIS instance's own nodes are exempt. exempting every trigger would
+      // leave this card open when a sibling "?" is tapped, floating two at once.
+      // Our own trigger still bails, so its click toggles us shut without a reopen.
+      if (n && (triggerRef.current?.contains(n) || boxRef.current?.contains(n))) return
       close()
     }
     const onKey = (e: KeyboardEvent) => {
@@ -127,7 +133,6 @@ export default function InfoTip({ label, children }: InfoTipProps) {
       <button
         ref={triggerRef}
         type="button"
-        data-pop
         data-infotip-trigger
         aria-label={label}
         aria-expanded={open}
@@ -151,7 +156,6 @@ export default function InfoTip({ label, children }: InfoTipProps) {
         createPortal(
           <div
             ref={boxRef}
-            data-pop
             data-infotip
             role="dialog"
             aria-label={label}

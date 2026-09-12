@@ -88,6 +88,21 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
   const dates = event.dates
   // month abbreviation per column, only where the month actually changes
   const monthTags = useMemo(() => monthChangeTags(dates), [dates])
+  // the corner announces the month of the LEFTMOST VISIBLE column, not dates[0]:
+  // with enough days the grid scrolls sideways and a pinned dates[0] would lie
+  const [leftCol, setLeftCol] = useState(0)
+  const colRaf = useRef(0)
+  const onScrollX = () => {
+    if (colRaf.current) return
+    colRaf.current = requestAnimationFrame(() => {
+      colRaf.current = 0
+      const el = scrollerRef.current
+      if (!el) return
+      setLeftCol(Math.min(dates.length - 1, Math.max(0, Math.floor(el.scrollLeft / colW))))
+    })
+  }
+  useEffect(() => () => { if (colRaf.current) cancelAnimationFrame(colRaf.current) }, [])
+
   const counts = useMemo(() => slotCounts(others), [others])
   const shown = preview ?? mySlots
 
@@ -353,6 +368,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
       <div
         ref={scrollerRef}
         role="grid"
+        onScroll={onScrollX}
         aria-label="availability grid: days across, times down. arrow keys move, space toggles."
         aria-rowcount={mins.length}
         aria-colcount={dates.length}
@@ -385,7 +401,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
             style={{ background: 'var(--bg-raised)' }}
           >
             <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
-              {monthOf(dates[0])}
+              {dates.length > 0 ? monthOf(dates[leftCol] ?? dates[0]) : ''}
             </span>
           </div>
 
@@ -812,6 +828,21 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
   const dates = event.dates
   // month abbreviation per column, only where the month actually changes
   const monthTags = useMemo(() => monthChangeTags(dates), [dates])
+  // the corner announces the month of the LEFTMOST VISIBLE column, not dates[0]:
+  // with enough days the grid scrolls sideways and a pinned dates[0] would lie
+  const [leftCol, setLeftCol] = useState(0)
+  const colRaf = useRef(0)
+  const onScrollX = () => {
+    if (colRaf.current) return
+    colRaf.current = requestAnimationFrame(() => {
+      colRaf.current = 0
+      const el = scrollerRef.current
+      if (!el) return
+      setLeftCol(Math.min(dates.length - 1, Math.max(0, Math.floor(el.scrollLeft / colW))))
+    })
+  }
+  useEffect(() => () => { if (colRaf.current) cancelAnimationFrame(colRaf.current) }, [])
+
   const options = event.options
   const counts = useMemo(() => slotCounts(others), [others])
   const view = preview ?? mySlots
@@ -994,6 +1025,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
       <div
         ref={scrollerRef}
         role="grid"
+        onScroll={onScrollX}
         aria-label="offered times: days across, times down. tap the blocks that work."
         aria-rowcount={mins.length}
         aria-colcount={dates.length}
@@ -1024,7 +1056,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
             style={{ gridColumn: 1, gridRow: 1, background: 'var(--bg-raised)' }}
           >
             <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
-              {monthOf(dates[0])}
+              {dates.length > 0 ? monthOf(dates[leftCol] ?? dates[0]) : ''}
             </span>
           </div>
 
