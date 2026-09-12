@@ -261,6 +261,21 @@ body {
     background-position: -130% 0;
   }
 }
+/* the "?" explainer card: a short lift in, no movement that could read as a shift */
+@keyframes tip-in {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.tip-in {
+  animation: tip-in 140ms ease-out;
+}
+
 /* the lock CTA gets a gentle heartbeat once a whole-group time exists */
 @keyframes lockin-ready {
   0%,
@@ -283,7 +298,8 @@ body {
   .cell-stamp,
   .pulse-soft,
   .lockin-fill-full::after,
-  .lockin-ready {
+  .lockin-ready,
+  .tip-in {
     animation: none;
   }
   .lockin-fill {

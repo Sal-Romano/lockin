@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CreateEventInput, EventMode, TimeOption } from '../../shared/types'
-import { fmtRange, optionKey, parseDate } from '../../shared/slots'
+import { fmtRange, monthOf, optionKey, parseDate } from '../../shared/slots'
 import { api } from '../lib/api'
 import { savedName } from '../lib/device'
 import { suggestEmojis } from '../lib/emojiSuggest'
@@ -9,6 +9,7 @@ import { navigate } from '../App'
 import MonthStrip from '../components/composer/MonthStrip'
 import TimeRangeSlider from '../components/composer/TimeRangeSlider'
 import EmojiPicker from '../components/composer/EmojiPicker'
+import InfoTip from '../components/InfoTip'
 import Grid from '../components/Grid'
 
 const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
@@ -104,7 +105,6 @@ export default function Create() {
   const [editingDays, setEditingDays] = useState(true)
   const [startMin, setStartMin] = useState(PRESETS[0].start)
   const [endMin, setEndMin] = useState(PRESETS[0].end)
-  const [whyOpen, setWhyOpen] = useState(false)
   const [groupSize, setGroupSize] = useState<number | null>(null)
   // slots mode: the organizer PAINTS the blocks they're offering on a grid.
   // `painted` holds slotKey cells; on create they roll up into TimeOptions.
@@ -114,9 +114,6 @@ export default function Create() {
   // slots: the organizer is usually free for the blocks they're offering, so we
   // offer to mark them in for all of them (skipping a re-select on the next page)
   const [iAmInAll, setIAmInAll] = useState(true)
-  const [whyMineOpen, setWhyMineOpen] = useState(false)
-  // floating info popover for the group-size control; any tap elsewhere closes it
-  const [sizeInfoOpen, setSizeInfoOpen] = useState(false)
   const [capNote, setCapNote] = useState(false)
   const [busy, setBusy] = useState(false)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -227,16 +224,6 @@ export default function Create() {
     const t = window.setTimeout(() => setCapNote(false), 2000)
     return () => window.clearTimeout(t)
   }, [capNote])
-
-  // the info popover floats above everything and dismisses on ANY interaction
-  // elsewhere. the trigger + popover stopPropagation, so this only sees "outside"
-  // pointerdowns; attached a tick after open so the opening tap never closes it.
-  useEffect(() => {
-    if (!sizeInfoOpen) return
-    const close = () => setSizeInfoOpen(false)
-    document.addEventListener('pointerdown', close)
-    return () => document.removeEventListener('pointerdown', close)
-  }, [sizeInfoOpen])
 
   const presetIdx = PRESETS.findIndex((p) => p.start === startMin && p.end === endMin)
 
@@ -405,9 +392,7 @@ export default function Create() {
         .cmp-emoji { animation: cmp-emoji 300ms cubic-bezier(0.34,1.56,0.64,1); }
         @keyframes cmp-chip-in { from { opacity: 0; transform: translateX(-8px) scale(0.9); } to { opacity: 1; transform: translateX(0) scale(1); } }
         .cmp-chip-in { animation: cmp-chip-in 260ms cubic-bezier(0.34,1.56,0.64,1) both; }
-        @keyframes cmp-collapse { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-        .cmp-collapse { animation: cmp-collapse 220ms ease-out both; }
-        @media (prefers-reduced-motion: reduce) { .cmp-rise, .cmp-pop, .cmp-ph, .cmp-shake, .cmp-emoji, .cmp-chip-in, .cmp-collapse { animation: none; } }
+        @media (prefers-reduced-motion: reduce) { .cmp-rise, .cmp-pop, .cmp-ph, .cmp-shake, .cmp-emoji, .cmp-chip-in { animation: none; } }
       `}</style>
 
       {mode === 'slots' && slotsPainting ? (
@@ -460,24 +445,11 @@ export default function Create() {
                   these times all work for me
                 </span>
               </button>
-              <button
-                onClick={() => setWhyMineOpen((v) => !v)}
-                aria-label="why is this a choice?"
-                aria-expanded={whyMineOpen}
-                className="flex h-5 w-5 flex-none items-center justify-center rounded-full text-[11px] font-bold"
-                style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', color: 'var(--ink-soft)' }}
-              >
-                ?
-              </button>
+              <InfoTip label="why is this a choice?">
+                You're setting these as the options for everyone. Leave it on if you can make them all and we'll count you
+                in. Turn it off to pick your own on the next screen.
+              </InfoTip>
             </div>
-            {whyMineOpen && (
-              <p
-                className="cmp-collapse rounded-xl px-3 py-2 text-[12px] leading-snug"
-                style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', color: 'var(--ink-soft)' }}
-              >
-                You're setting these as the options for everyone. Leave it on if you can make them all and we'll count you in. Turn it off to pick your own on the next screen.
-              </p>
-            )}
           </div>
           <p className="flex-none text-center text-xs" style={{ color: 'var(--ink-faint)' }}>
             drag to offer a block, drag it again to remove. guests tap the ones that work.
@@ -607,11 +579,15 @@ export default function Create() {
               className="cmp-rise flex flex-none flex-wrap items-center gap-1.5 rounded-2xl px-3.5 py-2.5 text-left"
               style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)' }}
             >
-              {dates.slice(0, 5).map((d) => {
+              {dates.slice(0, 5).map((d, i) => {
                 const dt = parseDate(d)
+                // first chip establishes the month; later chips only repeat it
+                // when the month actually rolls over
+                const showMonth = i === 0 || monthOf(dates[i - 1]) !== monthOf(d)
                 return (
                   <span key={d} className="rounded-xl px-2.5 py-1 text-xs font-bold" style={{ background: 'var(--accent-soft)', color: 'var(--ink)' }}>
-                    {DOW[dt.getDay()]} {dt.getDate()}
+                    {DOW[dt.getDay()]} {showMonth ? `${monthOf(d)} ` : ''}
+                    {dt.getDate()}
                   </span>
                 )
               })}
@@ -660,25 +636,11 @@ export default function Create() {
           <section className="cmp-rise flex flex-none flex-col gap-2.5">
             <div className="flex items-center gap-2">
               <span className="text-[15px] font-semibold">when-ish?</span>
-              {/* why this exists: tap to reveal, since hover tooltips don't work on touch */}
-              <button
-                onClick={() => setWhyOpen((v) => !v)}
-                aria-label="why set a window?"
-                aria-expanded={whyOpen}
-                className="flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold"
-                style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', color: 'var(--ink-soft)' }}
-              >
-                ?
-              </button>
+              <InfoTip label="why set a window?">
+                Trims the grid to just these hours, so friends aren't scrolling past a whole empty day. Faster to fill in,
+                easier to read.
+              </InfoTip>
             </div>
-            {whyOpen && (
-              <p
-                className="cmp-collapse rounded-xl px-3 py-2 text-[12px] leading-snug"
-                style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', color: 'var(--ink-soft)' }}
-              >
-                Trims the grid to just these hours, so friends aren't scrolling past a whole empty day. Faster to fill in, easier to read.
-              </p>
-            )}
             {/* one row of quick-picks; each pre-positions the slider below */}
             <div className="grid grid-cols-4 gap-2">
               {PRESET_ORDER.map((pi) => {
@@ -730,28 +692,30 @@ export default function Create() {
                 : { background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', transition: 'background 160ms ease, box-shadow 160ms ease' }
             }
           >
-            {/* tap the label to switch it on at the default; +/- fine-tune */}
-            <button onClick={groupActivate} className="flex min-w-0 flex-1 flex-col text-left">
-              <span className="flex items-center gap-1.5 text-sm font-semibold" style={{ color: groupSize ? 'var(--ink)' : 'var(--ink-soft)' }}>
-                how many of you?
-                <span
-                  role="button"
-                  aria-label="what is this?"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    setSizeInfoOpen((v) => !v)
-                  }}
-                  className="flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-bold"
-                  style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line)', color: 'var(--ink-soft)' }}
+            {/* tap the label to switch it on at the default; +/- fine-tune. the
+                "?" is a SIBLING of the label button, never nested inside it */}
+            <div className="flex min-w-0 flex-1 flex-col">
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={groupActivate}
+                  className="text-left text-sm font-semibold"
+                  style={{ color: groupSize ? 'var(--ink)' : 'var(--ink-soft)' }}
                 >
-                  ?
-                </span>
-              </span>
-              <span className="text-[12px]" style={{ color: groupSize ? 'var(--accent)' : 'var(--ink-faint)' }}>
+                  how many of you?
+                </button>
+                <InfoTip label="what is this?">
+                  Set your headcount and everyone sees a running tally like "4 of 6 in", so it's obvious at a glance when
+                  enough people can make it. Leave it off if the guest list is open.
+                </InfoTip>
+              </div>
+              <button
+                onClick={groupActivate}
+                className="text-left text-[12px]"
+                style={{ color: groupSize ? 'var(--accent)' : 'var(--ink-faint)' }}
+              >
                 {groupSize ? `${groupSize} of you · shows a live tally` : 'optional · sharpens the invite'}
-              </span>
-            </button>
+              </button>
+            </div>
             <div className="ml-auto flex flex-none items-center gap-1.5">
               <button
                 onClick={groupDown}
@@ -778,16 +742,6 @@ export default function Create() {
                 +
               </button>
             </div>
-
-            {sizeInfoOpen && (
-              <div
-                onPointerDown={(e) => e.stopPropagation()}
-                className="cmp-collapse absolute left-0 right-0 top-full z-50 mt-2 rounded-xl px-3.5 py-2.5 text-[12px] leading-snug"
-                style={{ background: 'var(--bg-raised)', boxShadow: 'inset 0 0 0 1px var(--line), var(--shadow-card)', color: 'var(--ink-soft)' }}
-              >
-                Set your headcount and everyone sees a running tally like "4 of 6 in", so it's obvious at a glance when enough people can make it. Leave it off if the guest list is open.
-              </div>
-            )}
           </section>
         )}
 

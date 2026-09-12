@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useRef } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { pad } from '../../../shared/slots'
 
 const DOW_LETTERS = ['S', 'M', 'T', 'W', 'T', 'F', 'S']
@@ -30,6 +30,8 @@ interface DayCell {
 interface WeekRow {
   /** month label row rendered above this week, when it opens a month */
   label: string | null
+  /** month this week mostly belongs to, for the pinned header */
+  month: string
   days: DayCell[]
 }
 
@@ -75,9 +77,11 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
     for (let w = 0; w < WEEKS; w++) {
       let label: string | null = null
       const days: DayCell[] = []
+      let mid = today
       for (let i = 0; i < 7; i++) {
         const d = new Date(start)
         d.setDate(start.getDate() + w * 7 + i)
+        if (i === 3) mid = d // midweek decides the month the header shows
         if (d.getDate() === 1) {
           label = d.getFullYear() === today.getFullYear() ? MON_FULL[d.getMonth()] : `${MON_FULL[d.getMonth()]} ${d.getFullYear()}`
         }
@@ -93,9 +97,45 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
       // the top of the scroller always announces the month you are looking at;
       // if a new month sneaks into week 0, its day-1 cell still wears the tiny name
       if (w === 0) label = MON_FULL[today.getMonth()]
-      out.push({ label, days })
+      const month =
+        mid.getFullYear() === today.getFullYear()
+          ? MON_FULL[mid.getMonth()]
+          : `${MON_FULL[mid.getMonth()]} ${mid.getFullYear()}`
+      out.push({ label, month, days })
     }
     return out
+  }, [])
+
+  // pinned month header: which month is at the top of the scroller right now.
+  // Each week's first cell carries [data-m], so this is a short walk, and it is
+  // rAF-throttled because it runs on every scroll frame.
+  const scrollerRef = useRef<HTMLDivElement | null>(null)
+  const [visMonth, setVisMonth] = useState(() => weeks[0]?.month ?? '')
+  const rafId = useRef(0)
+  const syncMonth = () => {
+    const el = scrollerRef.current
+    if (!el) return
+    const top = el.getBoundingClientRect().top
+    let cur = ''
+    for (const n of el.querySelectorAll<HTMLElement>('[data-m]')) {
+      if (n.getBoundingClientRect().top - top <= 12) cur = n.dataset.m ?? ''
+      else break
+    }
+    if (cur) setVisMonth(cur)
+  }
+  const onScroll = () => {
+    if (rafId.current) return
+    rafId.current = requestAnimationFrame(() => {
+      rafId.current = 0
+      syncMonth()
+    })
+  }
+  useEffect(() => {
+    syncMonth()
+    return () => {
+      if (rafId.current) cancelAnimationFrame(rafId.current)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   const dayAt = (x: number, y: number) =>
@@ -142,6 +182,13 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
 
   return (
     <div className="select-none" style={{ WebkitTouchCallout: 'none' }}>
+      {/* pinned month: the scroller runs ~6 months deep, so this is the anchor
+          that says which one you are actually looking at */}
+      <div className="mb-1 flex h-5 items-center">
+        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-soft)' }}>
+          {visMonth}
+        </span>
+      </div>
       <div className="mb-1.5 grid grid-cols-7 gap-1.5">
         {DOW_LETTERS.map((l, i) => (
           <div
@@ -154,6 +201,8 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
         ))}
       </div>
       <div
+        ref={scrollerRef}
+        onScroll={onScroll}
         aria-label="pick days"
         className="overflow-y-auto overscroll-y-contain"
         // starts at scrollTop 0, which IS the current week; no programmatic
@@ -228,11 +277,12 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
                   <span className="h-px flex-1" style={{ background: 'var(--line)' }} />
                 </div>
               )}
-              {wk.days.map((c) => {
+              {wk.days.map((c, ci) => {
                 if (c.past) {
                   return (
                     <div
                       key={c.key}
+                      data-m={ci === 0 ? wk.month : undefined}
                       className="flex h-11 flex-col items-center justify-center rounded-full text-sm font-medium"
                       style={{ color: 'var(--ink-faint)', opacity: 0.55 }}
                     >
@@ -247,6 +297,7 @@ export default function MonthStrip({ selected, onChange, onCommit, onCapHit, max
                 return (
                   <button
                     key={c.key}
+                    data-m={ci === 0 ? wk.month : undefined}
                     type="button"
                     data-day={c.key}
                     aria-pressed={sel}

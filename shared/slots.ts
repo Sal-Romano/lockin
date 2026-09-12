@@ -164,6 +164,25 @@ export function fmtDateShort(d: string): string {
   return `${MON[dt.getMonth()]} ${dt.getDate()}`
 }
 
+/** month abbreviation for a date, e.g. 'Sep' */
+export const monthOf = (d: string): string => MON[parseDate(d).getMonth()]
+
+/**
+ * Per-column month tags: null unless this date opens a new month relative to the
+ * one before it. Index 0 is always null because the grid's corner cell carries
+ * the establishing month. Keeps "SEP SEP SEP" off a single-month grid while
+ * making a Sep -> Oct boundary impossible to miss.
+ */
+export function monthChangeTags(dates: string[]): (string | null)[] {
+  let prev = -1
+  return dates.map((d, i) => {
+    const m = parseDate(d).getMonth()
+    const changed = i > 0 && m !== prev
+    prev = m
+    return changed ? MON[m] : null
+  })
+}
+
 export function dateRangeLabel(dates: string[]): string {
   if (dates.length === 0) return ''
   if (dates.length === 1) return fmtDate(dates[0])

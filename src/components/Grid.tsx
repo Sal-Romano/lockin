@@ -7,6 +7,8 @@ import {
   fmtMin,
   fmtRange,
   heatColor,
+  monthChangeTags,
+  monthOf,
   nameColor,
   optionKey,
   optionLabel,
@@ -84,6 +86,8 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
 
   const mins = useMemo(() => slotMinsForDay(event as MeetEvent), [event])
   const dates = event.dates
+  // month abbreviation per column, only where the month actually changes
+  const monthTags = useMemo(() => monthChangeTags(dates), [dates])
   const counts = useMemo(() => slotCounts(others), [others])
   const shown = preview ?? mySlots
 
@@ -374,7 +378,16 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
             width: GUTTER + dates.length * colW,
           }}
         >
-          <div className="sticky left-0 top-0 z-30" style={{ background: 'var(--bg-raised)' }} />
+          {/* establishing month: the corner is otherwise dead space, and it means
+              the columns never have to repeat a month that has not changed */}
+          <div
+            className="sticky left-0 top-0 z-30 flex items-center justify-center"
+            style={{ background: 'var(--bg-raised)' }}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
+              {monthOf(dates[0])}
+            </span>
+          </div>
 
           {dates.map((d, di) => {
             const dt = parseDate(d)
@@ -402,6 +415,14 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
                   className="text-sm font-bold leading-tight"
                   style={{ color: full ? '#fff' : locked?.date === d ? 'var(--gold)' : 'var(--ink)' }}
                 >
+                  {monthTags[di] && (
+                    <span
+                      className="mr-0.5 text-[10px] font-bold uppercase"
+                      style={{ color: full ? 'rgba(255,255,255,0.9)' : 'var(--accent)' }}
+                    >
+                      {monthTags[di]}
+                    </span>
+                  )}
                   {dt.getDate()}
                 </span>
               </button>
@@ -789,6 +810,8 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
 
   const mins = useMemo(() => slotMinsForDay(event as MeetEvent), [event])
   const dates = event.dates
+  // month abbreviation per column, only where the month actually changes
+  const monthTags = useMemo(() => monthChangeTags(dates), [dates])
   const options = event.options
   const counts = useMemo(() => slotCounts(others), [others])
   const view = preview ?? mySlots
@@ -994,8 +1017,16 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
             width: GUTTER + dates.length * colW,
           }}
         >
-          {/* corner */}
-          <div className="sticky left-0 top-0 z-30" style={{ gridColumn: 1, gridRow: 1, background: 'var(--bg-raised)' }} />
+          {/* corner: carries the establishing month so columns only ever show a
+              month when it actually changes */}
+          <div
+            className="sticky left-0 top-0 z-30 flex items-center justify-center"
+            style={{ gridColumn: 1, gridRow: 1, background: 'var(--bg-raised)' }}
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
+              {monthOf(dates[0])}
+            </span>
+          </div>
 
           {/* sticky day headers (display only: you select blocks, not days) */}
           {dates.map((d, di) => {
@@ -1013,6 +1044,11 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
                   className="text-sm font-bold leading-tight"
                   style={{ color: locked?.date === d ? 'var(--gold)' : 'var(--ink)' }}
                 >
+                  {monthTags[di] && (
+                    <span className="mr-0.5 text-[10px] font-bold uppercase" style={{ color: 'var(--accent)' }}>
+                      {monthTags[di]}
+                    </span>
+                  )}
                   {dt.getDate()}
                 </span>
               </div>
