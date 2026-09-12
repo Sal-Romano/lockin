@@ -7,6 +7,7 @@ import {
   fmtMin,
   fmtRange,
   heatColor,
+  MAX_END_MIN,
   monthChangeTags,
   monthOf,
   nameColor,
@@ -23,6 +24,47 @@ const HEADER_H = 44
 const MIN_ROW = 24
 const MAX_ROW = 60
 const MIN_COL = 72
+/** how much one tap on an axis "+" adds */
+const EXTEND_STEP = 60
+
+/**
+ * A "+" that widens the offered window, parked in the time axis so it costs a
+ * row of height and no horizontal room. Its label is the time it would ADD, so
+ * you know what you are getting before you tap.
+ */
+function AxisAdd({
+  label,
+  disabled,
+  onClick,
+  className = '',
+}: {
+  label: string
+  disabled: boolean
+  onClick: () => void
+  className?: string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={disabled ? `cannot extend past ${label}` : `add ${label}`}
+      className={`flex h-6 flex-none items-center justify-center gap-0.5 self-start rounded-md text-[10px] font-bold active:scale-95 ${className}`}
+      style={{
+        width: GUTTER + 26,
+        background: 'var(--bg-sunken)',
+        boxShadow: 'inset 0 0 0 1px var(--line)',
+        color: 'var(--ink-soft)',
+        opacity: disabled ? 0.35 : 1,
+        transition: 'transform 120ms ease',
+      }}
+    >
+      <span className="text-[12px] leading-none">+</span>
+      {label}
+    </button>
+  )
+}
+
 const HINT_KEY = 'lockin:paint-hint-done'
 const TAP_HINT_KEY = 'lockin:tap-hint-done'
 const SLOT_HINT_KEY = 'lockin:slot-hint-done'
@@ -38,6 +80,12 @@ export interface GridProps {
   denom: number
   /** my display name, for the "you" bubble piped into options i picked */
   meName?: string | null
+  /**
+   * Host-only: show "+" affordances in the time axis that push the window
+   * earlier or later (including past midnight). Omitted everywhere else, so
+   * guests can never reshape an event they were invited to.
+   */
+  onExtend?: (edge: 'start' | 'end') => void
   locked?: LockedWindow | null
   /** slotKey -> painter color, for remote-stroke glints */
   glints?: Map<string, string>
@@ -67,7 +115,7 @@ export default function Grid(props: GridProps) {
   return <TimeGrid {...props} />
 }
 
-function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, animateIn, readOnly }: GridProps) {
+function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, animateIn, readOnly, onExtend }: GridProps) {
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [colW, setColW] = useState(MIN_COL)
   const [rowH, setRowH] = useState(MAX_ROW)
@@ -365,6 +413,14 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col">
+      {onExtend && (
+        <AxisAdd
+          label={fmtMin(Math.max(0, event.startMin - EXTEND_STEP))}
+          disabled={event.startMin <= 0}
+          onClick={() => onExtend('start')}
+          className="mb-1"
+        />
+      )}
       <div
         ref={scrollerRef}
         role="grid"
@@ -467,7 +523,19 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
         </div>
       </div>
 
-      {/* legend: two colors, two meanings, so "mine" is never in doubt */}
+      {onExtend && (
+        <AxisAdd
+          label={fmtMin(Math.min(MAX_END_MIN, event.endMin + EXTEND_STEP))}
+          disabled={event.endMin >= MAX_END_MIN}
+          onClick={() => onExtend('end')}
+          className="mt-1"
+        />
+      )}
+
+      {/* legend: two colors, two meanings, so "mine" is never in doubt. Hidden on
+          the host's own paint step (onExtend), where there is no group yet and
+          every block is theirs, so it would explain a distinction that cannot exist. */}
+      {!onExtend && (
       <div className="mt-1.5 flex flex-none items-center justify-center gap-4 text-[11px] font-medium" style={{ color: 'var(--ink-soft)' }}>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded" style={{ background: 'var(--you)' }} />
@@ -478,6 +546,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
           the group
         </span>
       </div>
+      )}
 
       {/* the stroke narrator: says what your finger is doing, in words.
           portaled to body so no animated ancestor's transform can trap the

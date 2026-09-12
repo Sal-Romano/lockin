@@ -1,6 +1,6 @@
 import { useRef } from 'react'
 import type { CSSProperties, KeyboardEvent as ReactKeyboardEvent } from 'react'
-import { fmtRange } from '../../../shared/slots'
+import { DAY_MIN, fmtRange, MAX_END_MIN } from '../../../shared/slots'
 
 interface TimeRangeSliderProps {
   startMin: number
@@ -15,8 +15,12 @@ interface TimeRangeSliderProps {
   minGap?: number
 }
 
-/** faint orientation marks under the rail, at 0 / 25 / 50 / 75 / 100 % */
-const TICKS = ['12a', '6a', '12p', '6p', '12a']
+/**
+ * Faint orientation marks under the rail. Six evenly spaced labels land exactly
+ * on 6-hour marks because the track runs 0 to MAX_END_MIN (30 hours), so the
+ * last one is 6am the following morning.
+ */
+const TICKS = ['12a', '6a', '12p', '6p', '12a', '6a']
 
 /**
  * A two-thumb time-of-day range. Presets pre-position the thumbs; dragging either
@@ -34,7 +38,7 @@ export default function TimeRangeSlider({
   endMin,
   onChange,
   min = 0,
-  max = 1440,
+  max = MAX_END_MIN,
   step = 30,
   minGap = 60,
 }: TimeRangeSliderProps) {
@@ -53,12 +57,12 @@ export default function TimeRangeSlider({
 
   const move = (which: 'start' | 'end', clientX: number) => {
     const v = valueAt(clientX)
-    if (which === 'start') onChange(Math.min(v, endMin - minGap), endMin)
+    if (which === 'start') onChange(Math.min(v, endMin - minGap, DAY_MIN), endMin)
     else onChange(startMin, Math.max(v, startMin + minGap))
   }
 
   const nudge = (which: 'start' | 'end', delta: number) => {
-    if (which === 'start') onChange(Math.min(Math.max(min, startMin + delta), endMin - minGap), endMin)
+    if (which === 'start') onChange(Math.min(Math.max(min, startMin + delta), endMin - minGap, DAY_MIN), endMin)
     else onChange(startMin, Math.max(Math.min(max, endMin + delta), startMin + minGap))
   }
 

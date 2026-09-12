@@ -2,6 +2,16 @@ import type { MeetEvent, Participant, TimeOption } from './types'
 
 export const pad = (n: number, w = 2) => String(n).padStart(w, '0')
 
+/** minutes in a day; also the latest a window may START */
+export const DAY_MIN = 1440
+/**
+ * The latest an offered window may END: 6am the following day. Times past
+ * DAY_MIN mean "the small hours after this date", which is how people actually
+ * talk about a Friday night that runs to 2am. fmtMin already wraps (mod 24) and
+ * the ics export already rolls DTEND onto the next day.
+ */
+export const MAX_END_MIN = DAY_MIN + 360
+
 /** slot key for datetime mode: '2026-09-12T1140' where 1140 = minutes from midnight */
 export const slotKey = (date: string, min: number) => `${date}T${pad(min, 4)}`
 

@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url'
 import { randomUUID } from 'node:crypto'
 import sharp from 'sharp'
 import type { CreateEventInput, EventPayload, LockedWindow, MeetEvent, PatchEventInput, TimeOption } from '../shared/types'
-import { allSlotKeys, dateRangeLabel, fmtDate, fmtRange, optionKey, pad, parseDate } from '../shared/slots'
+import { allSlotKeys, dateRangeLabel, fmtDate, fmtRange, DAY_MIN, MAX_END_MIN, optionKey, pad, parseDate } from '../shared/slots'
 import * as db from './db'
 import * as rooms from './rooms'
 import { renderOgCached } from './og'
@@ -87,8 +87,10 @@ function validWindow(startRaw: unknown, endRaw: unknown, slotMin: number): { sta
   const s0 = Number(startRaw)
   const e0 = Number(endRaw)
   if (Number.isNaN(s0) || Number.isNaN(e0)) return null
-  const startMin = Math.floor(Math.max(0, Math.min(1440, s0)) / slotMin) * slotMin
-  const endMin = Math.ceil(Math.max(0, Math.min(1440, e0)) / slotMin) * slotMin
+  // a window may start anywhere in the day and run past midnight into the small
+  // hours of the next one, which is why the end clamps to MAX_END_MIN, not DAY_MIN
+  const startMin = Math.floor(Math.max(0, Math.min(DAY_MIN, s0)) / slotMin) * slotMin
+  const endMin = Math.ceil(Math.max(0, Math.min(MAX_END_MIN, e0)) / slotMin) * slotMin
   return endMin > startMin ? { startMin, endMin } : null
 }
 
@@ -104,7 +106,7 @@ function validOptions(raw: unknown): TimeOption[] | null {
     const endMin = Number((o as { endMin?: unknown }).endMin)
     if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) continue
     if (!Number.isInteger(startMin) || !Number.isInteger(endMin)) continue
-    if (startMin < 0 || startMin > 1440 || endMin < 0 || endMin > 1440) continue
+    if (startMin < 0 || startMin > DAY_MIN || endMin < 0 || endMin > MAX_END_MIN) continue
     if (endMin <= startMin) continue
     const opt: TimeOption = { date, startMin, endMin }
     const k = optionKey(opt)

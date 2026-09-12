@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CreateEventInput, EventMode, TimeOption } from '../../shared/types'
-import { fmtRange, monthOf, optionKey, parseDate } from '../../shared/slots'
+import { fmtRange, MAX_END_MIN, monthOf, optionKey, parseDate } from '../../shared/slots'
 import { api } from '../lib/api'
 import { savedName } from '../lib/device'
 import { suggestEmojis } from '../lib/emojiSuggest'
@@ -276,6 +276,15 @@ export default function Create() {
     setGroupSize((n) => (n == null ? GROUP_DEFAULT - 1 : n <= GROUP_MIN ? null : n - 1))
   const groupActivate = () => setGroupSize((n) => n ?? GROUP_DEFAULT)
 
+  // the axis "+" on the paint grid widens the offered window by an hour. It edits
+  // the SAME startMin/endMin that when-ish owns, so the setting updates live (the
+  // window stops matching a preset and reads as a custom range from then on), and
+  // the end may run past midnight into the small hours of the next morning.
+  const extendWindow = (edge: 'start' | 'end') => {
+    if (edge === 'start') setStartMin((m) => Math.max(0, m - 60))
+    else setEndMin((m) => Math.min(MAX_END_MIN, m + 60))
+  }
+
   // the calendar stays open until you tap "these days ✓": pick as many as you
   // like. (nothing to sync per gesture in the create-on-submit model.)
   const handleDaysCommit = () => {}
@@ -418,7 +427,15 @@ export default function Create() {
           </button>
           <div className="flex-none text-[15px] font-semibold">paint the times you're offering</div>
           <div className="flex min-h-0 flex-1 flex-col">
-            <Grid event={paintGridEvent} others={[]} mySlots={painted} onStroke={(next) => setPainted(next)} denom={1} animateIn />
+            <Grid
+              event={paintGridEvent}
+              others={[]}
+              mySlots={painted}
+              onStroke={(next) => setPainted(next)}
+              denom={1}
+              animateIn
+              onExtend={extendWindow}
+            />
           </div>
           {/* the organizer is usually free for what they offer: one tap marks them
               in for all of it, so they don't re-select on the next page */}
