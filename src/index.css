@@ -215,6 +215,15 @@ body {
   animation: pulse-soft 2s ease-in-out infinite;
 }
 
+/* a scrollbar inside a card reads as broken on a phone; the grid sizes itself to
+   fit, and this hides the chrome for the rare window long enough to still scroll */
+.no-sb {
+  scrollbar-width: none;
+}
+.no-sb::-webkit-scrollbar {
+  display: none;
+}
+
 /* option "glass": a warm liquid that rises to the share of people who are in.
    the fill height is set inline (frac of the capsule); it eases up as votes
    land, and when everyone is in it warms toward gold, glows, and shimmers. */

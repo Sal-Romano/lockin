@@ -429,7 +429,6 @@ export default function Create() {
               edit
             </span>
           </button>
-          <div className="flex-none text-[15px] font-semibold">paint the times you're offering</div>
           <div className="flex min-h-0 flex-1 flex-col">
             <Grid
               event={paintGridEvent}
@@ -473,7 +472,7 @@ export default function Create() {
             </div>
           </div>
           <p className="flex-none text-center text-xs" style={{ color: 'var(--ink-faint)' }}>
-            drag to offer a block, drag it again to remove. guests tap the ones that work.
+            drag to offer a block, drag it again to remove.
           </p>
         </div>
       ) : (

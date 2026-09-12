@@ -27,7 +27,16 @@ const GUTTER = 40
  *  the time labels in their own lane instead of on top of them */
 const GUTTER_WIDE = 68
 const HEADER_H = 44
+/**
+ * Rows shrink to fit rather than overflow: a scrollbar inside the grid reads as
+ * broken on a phone, and the whole point of the surface is seeing the days at a
+ * glance. MIN_ROW is the comfortable floor; FLOOR_ROW is the hard one we only
+ * reach for very long windows (the axis "+" can stretch a night to 30 hours),
+ * where a dense-but-whole grid still beats a scrolling one. Painting keeps its
+ * 30 minute gradations either way, since a drag selects a range, not a pixel.
+ */
 const MIN_ROW = 24
+const FLOOR_ROW = 8
 const MAX_ROW = 60
 const MIN_COL = 72
 /**
@@ -176,7 +185,8 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
       setColW(availW >= dates.length * MIN_COL ? Math.floor(availW / dates.length) : MIN_COL)
       const availH = el.clientHeight - HEADER_H
       const rh = Math.floor(availH / Math.max(1, mins.length))
-      setRowH(Math.max(MIN_ROW, Math.min(MAX_ROW, rh)))
+      // only dip under the comfortable floor when that is what it takes to fit
+      setRowH(Math.max(FLOOR_ROW, Math.min(MAX_ROW, rh)))
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -431,7 +441,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
         aria-rowcount={mins.length}
         aria-colcount={dates.length}
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border focus-visible:outline-2"
+        className="no-sb min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border focus-visible:outline-2"
         style={{
           borderColor: 'var(--line)',
           background: 'var(--bg-raised)',
@@ -653,6 +663,7 @@ function RowCells({
           background: 'var(--bg-raised)',
           color: 'var(--ink-faint)',
           fontSize: compact ? 9 : 10,
+          lineHeight: 1,
           // labels straddle the line at the TOP of their row, except the first:
           // shifting that one up slid it under the opaque sticky corner (z-30),
           // which clipped it
@@ -660,7 +671,7 @@ function RowCells({
         }}
         aria-hidden
       >
-        {m % 60 === 0 ? fmtMin(m) : ''}
+        {m % (rowH < 15 ? 120 : 60) === 0 ? fmtMin(m) : ''}
       </div>
       {dates.map((d, di) => {
         const key = slotKey(d, m)
@@ -677,7 +688,7 @@ function RowCells({
         const bg =
           me.others > 0 ? (heatColor(total, denom) ?? 'var(--cell-empty)') : me.mine ? 'var(--you)' : 'var(--cell-empty)'
         const ring = me.mine ? 2.5 : 0
-        const r = compact ? 8 : 10
+        const r = rowH < 16 ? 4 : compact ? 8 : 10
         return (
           <div
             key={key}
@@ -995,7 +1006,8 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
       setColW(availW >= dates.length * MIN_COL ? Math.floor(availW / dates.length) : MIN_COL)
       const availH = el.clientHeight - HEADER_H
       const rh = Math.floor(availH / Math.max(1, mins.length))
-      setRowH(Math.max(MIN_ROW, Math.min(MAX_ROW, rh)))
+      // only dip under the comfortable floor when that is what it takes to fit
+      setRowH(Math.max(FLOOR_ROW, Math.min(MAX_ROW, rh)))
     }
     measure()
     const ro = new ResizeObserver(measure)
@@ -1131,7 +1143,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
         aria-rowcount={mins.length}
         aria-colcount={dates.length}
         tabIndex={0}
-        className="min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border focus-visible:outline-2"
+        className="no-sb min-h-0 flex-1 overflow-auto overscroll-contain rounded-2xl border focus-visible:outline-2"
         style={{
           borderColor: 'var(--line)',
           background: 'var(--bg-raised)',
@@ -1199,6 +1211,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
                 background: 'var(--bg-raised)',
                 color: 'var(--ink-faint)',
                 fontSize: compact ? 9 : 10,
+                lineHeight: 1,
                 // labels straddle the line at the TOP of their row, except the first:
                 // shifting that one up slid it under the opaque sticky corner (z-30),
                 // which clipped it
@@ -1206,7 +1219,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
               }}
               aria-hidden
             >
-              {m % 60 === 0 ? fmtMin(m) : ''}
+              {m % (rowH < 15 ? 120 : 60) === 0 ? fmtMin(m) : ''}
             </div>
           ))}
 
@@ -1226,7 +1239,7 @@ function OptionGrid({ event, others, mySlots, onStroke, denom, meName, locked, g
             const fillPct = total === 0 ? 0 : everyone ? 100 : Math.max(12, Math.round(frac * 100))
             const spanH = (siEnd - siStart + 1) * rowH
             const justPainted = mine && !mySlots.has(k)
-            const r = compact ? 8 : 10
+            const r = rowH < 16 ? 4 : compact ? 8 : 10
             // who is in, piped in as bubbles: you first (accent), then others
             const voters = others.filter((p) => p.slots.includes(k))
             const bubbles = [
