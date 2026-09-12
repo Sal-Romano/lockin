@@ -23,46 +23,52 @@ import {
 } from '../../shared/slots'
 
 const GUTTER = 40
+/** the axis widens when it carries the host's +/- controls, so they sit BESIDE
+ *  the time labels in their own lane instead of on top of them */
+const GUTTER_WIDE = 68
 const HEADER_H = 44
 const MIN_ROW = 24
 const MAX_ROW = 60
 const MIN_COL = 72
 /**
- * A "+" that widens the offered window. It lives INSIDE the time axis, so it
- * costs no height: one rides in the sticky corner beneath the month, the other
- * pins to the bottom-left of the card. Sized to the gutter, and labelled with
- * the hour it would add (always a whole hour, so the text stays short).
+ * One step of the offered window, in the time axis. Icon only: a "+" grows that
+ * end, a "-" trims it. They live in the gutter's own lane, so they never sit on
+ * top of a time label, and they cost the grid no height.
  */
-function AxisAdd({
-  label,
+function AxisStep({
+  grow,
   disabled,
   onClick,
-  style,
+  title,
 }: {
-  label: string
+  grow: boolean
   disabled: boolean
   onClick: () => void
-  style?: CSSProperties
+  title: string
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      aria-label={disabled ? `cannot extend past ${label}` : `add ${label}`}
-      className="flex items-center justify-center rounded text-[9px] font-bold leading-none active:scale-90"
+      aria-label={title}
+      title={title}
+      className="relative flex items-center justify-center rounded-md text-[15px] font-bold leading-none active:scale-90"
       style={{
-        width: GUTTER - 8,
-        height: 16,
+        width: 24,
+        height: 22,
         background: 'var(--bg-sunken)',
         boxShadow: 'inset 0 0 0 1px var(--line)',
         color: 'var(--ink-soft)',
-        opacity: disabled ? 0.3 : 1,
+        opacity: disabled ? 0.25 : 1,
+        touchAction: 'manipulation',
+        WebkitTapHighlightColor: 'transparent',
         transition: 'transform 120ms ease',
-        ...style,
       }}
     >
-      +{label}
+      {grow ? '+' : '\u2212'}
+      {/* widen the tap target without widening the button */}
+      <span className="absolute -inset-1.5" aria-hidden />
     </button>
   )
 }
@@ -83,11 +89,11 @@ export interface GridProps {
   /** my display name, for the "you" bubble piped into options i picked */
   meName?: string | null
   /**
-   * Host-only: show "+" affordances in the time axis that push the window
-   * earlier or later (including past midnight). Omitted everywhere else, so
+   * Host-only: show +/- controls in the time axis that grow or trim each end of
+   * the window (growing may run past midnight). Omitted everywhere else, so
    * guests can never reshape an event they were invited to.
    */
-  onExtend?: (edge: 'start' | 'end') => void
+  onAdjust?: (edge: 'start' | 'end', grow: boolean) => void
   locked?: LockedWindow | null
   /** slotKey -> painter color, for remote-stroke glints */
   glints?: Map<string, string>
@@ -117,7 +123,9 @@ export default function Grid(props: GridProps) {
   return <TimeGrid {...props} />
 }
 
-function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, animateIn, readOnly, onExtend }: GridProps) {
+function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, animateIn, readOnly, onAdjust }: GridProps) {
+  // the axis only needs the extra lane when it is carrying controls
+  const gutter = onAdjust ? GUTTER_WIDE : GUTTER
   const scrollerRef = useRef<HTMLDivElement>(null)
   const [colW, setColW] = useState(MIN_COL)
   const [rowH, setRowH] = useState(MAX_ROW)
@@ -164,7 +172,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
     const el = scrollerRef.current
     if (!el) return
     const measure = () => {
-      const availW = el.clientWidth - GUTTER
+      const availW = el.clientWidth - gutter
       setColW(availW >= dates.length * MIN_COL ? Math.floor(availW / dates.length) : MIN_COL)
       const availH = el.clientHeight - HEADER_H
       const rh = Math.floor(availH / Math.max(1, mins.length))
@@ -174,7 +182,7 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
     const ro = new ResizeObserver(measure)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [dates.length, mins.length])
+  }, [dates.length, mins.length, gutter])
 
   const cellAt = (clientX: number, clientY: number): CellRef | null => {
     const el = scrollerRef.current
@@ -182,8 +190,8 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
     const r = el.getBoundingClientRect()
     const vx = clientX - r.left
     const vy = clientY - r.top
-    if (vx < GUTTER || vy < HEADER_H) return null // sticky rails are not paint targets
-    const di = Math.floor((vx + el.scrollLeft - GUTTER) / colW)
+    if (vx < gutter || vy < HEADER_H) return null // sticky rails are not paint targets
+    const di = Math.floor((vx + el.scrollLeft - gutter) / colW)
     const si = Math.floor((vy + el.scrollTop - HEADER_H) / rowH)
     if (di < 0 || di >= dates.length || si < 0 || si >= mins.length) return null
     return { di, si }
@@ -439,27 +447,20 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
         <div
           className="relative grid"
           style={{
-            gridTemplateColumns: `${GUTTER}px repeat(${dates.length}, ${colW}px)`,
+            gridTemplateColumns: `${gutter}px repeat(${dates.length}, ${colW}px)`,
             gridTemplateRows: `${HEADER_H}px repeat(${mins.length}, ${rowH}px)`,
-            width: GUTTER + dates.length * colW,
+            width: gutter + dates.length * colW,
           }}
         >
           {/* establishing month: the corner is otherwise dead space, and it means
               the columns never have to repeat a month that has not changed */}
           <div
-            className="sticky left-0 top-0 z-30 flex flex-col items-center justify-center gap-1"
+            className="sticky left-0 top-0 z-30 flex items-center justify-center"
             style={{ background: 'var(--bg-raised)' }}
           >
             <span className="text-[10px] font-bold uppercase tracking-wide" style={{ color: 'var(--ink-faint)' }}>
               {dates.length > 0 ? monthOf(dates[leftCol] ?? dates[0]) : ''}
             </span>
-            {onExtend && (
-              <AxisAdd
-                label={fmtMin(hourBefore(event.startMin))}
-                disabled={event.startMin <= 0}
-                onClick={() => onExtend('start')}
-              />
-            )}
           </div>
 
           {dates.map((d, di) => {
@@ -524,19 +525,46 @@ function TimeGrid({ event, others, mySlots, onStroke, denom, locked, glints, ani
         </div>
       </div>
 
-      {onExtend && (
-        <AxisAdd
-          label={fmtMin(Math.min(MAX_END_MIN, hourAfter(event.endMin)))}
-          disabled={event.endMin >= MAX_END_MIN}
-          onClick={() => onExtend('end')}
-          style={{ position: 'absolute', left: 4, bottom: 5, zIndex: 25 }}
-        />
+      {onAdjust && (
+        <>
+          {/* each end of the window gets a grow/trim pair, stacked so the arrow of
+              intent matches the direction: at the top "+" reaches back earlier, at
+              the bottom "+" reaches on later. They sit in the gutter's own lane. */}
+          <div className="absolute z-30 flex flex-col gap-1" style={{ left: 5, top: HEADER_H + 5 }}>
+            <AxisStep
+              grow
+              disabled={event.startMin <= 0}
+              onClick={() => onAdjust('start', true)}
+              title={`start earlier, at ${fmtMin(hourBefore(event.startMin))}`}
+            />
+            <AxisStep
+              grow={false}
+              disabled={hourAfter(event.startMin) > event.endMin - 60}
+              onClick={() => onAdjust('start', false)}
+              title={`start later, at ${fmtMin(hourAfter(event.startMin))}`}
+            />
+          </div>
+          <div className="absolute z-30 flex flex-col gap-1" style={{ left: 5, bottom: 6 }}>
+            <AxisStep
+              grow={false}
+              disabled={hourBefore(event.endMin) < event.startMin + 60}
+              onClick={() => onAdjust('end', false)}
+              title={`end earlier, at ${fmtMin(hourBefore(event.endMin))}`}
+            />
+            <AxisStep
+              grow
+              disabled={event.endMin >= MAX_END_MIN}
+              onClick={() => onAdjust('end', true)}
+              title={`end later, at ${fmtMin(Math.min(MAX_END_MIN, hourAfter(event.endMin)))}`}
+            />
+          </div>
+        </>
       )}
 
       {/* legend: two colors, two meanings, so "mine" is never in doubt. Hidden on
-          the host's own paint step (onExtend), where there is no group yet and
+          the host's own paint step (onAdjust), where there is no group yet and
           every block is theirs, so it would explain a distinction that cannot exist. */}
-      {!onExtend && (
+      {!onAdjust && (
       <div className="mt-1.5 flex flex-none items-center justify-center gap-4 text-[11px] font-medium" style={{ color: 'var(--ink-soft)' }}>
         <span className="flex items-center gap-1.5">
           <span className="inline-block h-3 w-3 rounded" style={{ background: 'var(--you)' }} />

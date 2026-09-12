@@ -276,13 +276,17 @@ export default function Create() {
     setGroupSize((n) => (n == null ? GROUP_DEFAULT - 1 : n <= GROUP_MIN ? null : n - 1))
   const groupActivate = () => setGroupSize((n) => n ?? GROUP_DEFAULT)
 
-  // the axis "+" on the paint grid widens the offered window by an hour. It edits
-  // the SAME startMin/endMin that when-ish owns, so the setting updates live (the
-  // window stops matching a preset and reads as a custom range from then on), and
-  // the end may run past midnight into the small hours of the next morning.
-  const extendWindow = (edge: 'start' | 'end') => {
-    if (edge === 'start') setStartMin(hourBefore)
-    else setEndMin((m) => Math.min(MAX_END_MIN, hourAfter(m)))
+  // the axis +/- on the paint grid move either end of the offered window by an
+  // hour. They edit the SAME startMin/endMin that when-ish owns, so the setting
+  // updates live (the window stops matching a preset and reads as a custom range
+  // from then on), the end may run past midnight into the small hours, and the
+  // window can never be trimmed below an hour.
+  const adjustWindow = (edge: 'start' | 'end', grow: boolean) => {
+    if (edge === 'start') {
+      setStartMin((m) => Math.max(0, Math.min(grow ? hourBefore(m) : hourAfter(m), endMin - 60)))
+    } else {
+      setEndMin((m) => Math.min(MAX_END_MIN, Math.max(grow ? hourAfter(m) : hourBefore(m), startMin + 60)))
+    }
   }
 
   // the calendar stays open until you tap "these days ✓": pick as many as you
@@ -434,7 +438,7 @@ export default function Create() {
               onStroke={(next) => setPainted(next)}
               denom={1}
               animateIn
-              onExtend={extendWindow}
+              onAdjust={adjustWindow}
             />
           </div>
           {/* the organizer is usually free for what they offer: one tap marks them
